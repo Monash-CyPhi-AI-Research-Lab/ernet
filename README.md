@@ -53,5 +53,5 @@ CUDA_VISIBLE_DEVICES=0 python3 tools/eval.py --cfg configs/hico.yaml MODEL.RESUM
 - The checkpoint is saved on HICO-DET with torch==1.9.0.
 - Currently support evaluation on single GPU.
 
-## Citation 
-This work is currently review and the complete code will be released soon.
+## Citation and Code
+This work is currently under review and the complete code will be released soon.
