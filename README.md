@@ -1,7 +1,5 @@
 # ERNet: An Efficient and Reliable Human-Object Interaction Detection Network
 
-We will release the code upon paper acceptance to IEEE Transaction on Image Processing.
-
 <img src="figures/ERNet_Architecture.jpg"  width="800"/>
 
 Abtract: Human-Object Interaction (HOI) detection recognizes how persons interact with objects, which is advantageous in autonomous systems such as self-driving vehicles and collaborative robots. However, current HOI detectors are often plagued by model inefficiency and unreliability when making a prediction, which consequently limits its potential for real-world scenarios. In this paper, we address these challenges by proposing ERNet, an end-to-end trainable convolutional-transformer network for HOI detection. The proposed model employs an efficient multi-scale deformable attention to effectively capture vital HOI features. We also put forward a novel detection attention module to adaptively generate semantically rich instance and interaction tokens. These tokens undergo pre-emptive detections to produce initial region and vector proposals that also serve as queries which enhances the feature refinement process in the transformer decoders. Several impactful enhancements are also applied to improve the HOI representation learning. Additionally, we utilize a predictive uncertainty estimation framework in the instance and interaction classification heads to quantify the uncertainty behind each prediction. By doing so, we can accurately and reliably predict HOIs even under challenging scenarios. Experiment results on the HICO-Det, V-COCO, and HOI-A datasets demonstrate that the proposed model achieves state-of-the-art performance in detection accuracy and training efficiency.
@@ -54,3 +52,6 @@ CUDA_VISIBLE_DEVICES=0 python3 tools/eval.py --cfg configs/hico.yaml MODEL.RESUM
 ```
 - The checkpoint is saved on HICO-DET with torch==1.9.0.
 - Currently support evaluation on single GPU.
+
+## Citation 
+This work is currently review and the complete code will be released soon.
