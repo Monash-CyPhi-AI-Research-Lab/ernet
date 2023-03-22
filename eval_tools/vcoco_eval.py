@@ -80,7 +80,6 @@ class vcoco():
             total_rec.append(rec)
             total_prec.append(prec)
 
-        self.pr_curve(total_rec,total_prec)
         mAP = np.mean(ap[self.verb_name_dict_valid])
         m_rec = np.mean(max_recall[self.verb_name_dict_valid])
         print('--------------------')
@@ -96,34 +95,6 @@ class vcoco():
         i = np.where(mrec[1:] != mrec[:-1])[0]
         ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
         return ap
-
-    def pr_curve(self, rec, prec):
-        rec_interp = np.linspace(0.,1.,1000)
-        total_pre = np.zeros(1000)
-        num_class = len(self.verb_name_dict_valid)
-
-        for i in range(num_class):
-            mrec = np.concatenate((rec[i], [1.]))
-            mpre = np.concatenate((prec[i], [0.]))
-
-            pre_interp = np.interp(rec_interp,mrec,mpre)
-
-            total_pre+=pre_interp
-
-            # plt.plot(rec_interp,pre_interp)      
-            # plt.xlabel('Recall')
-            # plt.ylabel('Precision')
-            # plt.title('Precision-Recall Curve of {}'.format(self.verb_name_dict[self.verb_name_dict_valid[i]+1]))
-            # plt.grid()
-            # plt.show()
-
-        plt.plot(rec_interp,total_pre/num_class)      
-        plt.xlabel('Recall', fontsize=13)
-        plt.ylabel('Precision', fontsize=13)
-        plt.title('Average Precision-Recall Curve of V-COCO Interactions',fontweight='bold')
-        plt.grid(which='both')
-        plt.savefig('VCOCO_PR.png', dpi=300)
-        plt.show()
 
     def compute_fptp(self, pred_hoi, gt_hoi, match_pairs):
         pos_pred_ids = match_pairs.keys()

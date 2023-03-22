@@ -106,7 +106,6 @@ class hico():
             total_rec.append(rec)
             total_prec.append(prec)
 
-        self.pr_curve(total_rec,total_prec)
         mAP = np.mean(ap[:])
         mAP_rare = np.mean(ap[self.r_inds])
         mAP_nonrare = np.mean(ap[self.c_inds])
@@ -125,33 +124,6 @@ class hico():
                 p = np.max(prec[rec >= t])
             ap = ap + p / 11.
         return ap
-
-    def pr_curve(self, rec, prec):
-        rec_interp = np.linspace(0.,1.,1000)
-        total_pre = np.zeros(1000)
-        num_class = self.num_class
-
-        for i in range(len(rec)):
-            mrec = np.concatenate((rec[i], [1.]))
-            mpre = np.concatenate((prec[i], [0.]))
-
-            pre_interp = np.interp(rec_interp,mrec,mpre)
-
-            total_pre+=pre_interp
-
-            # plt.plot(rec_interp,pre_interp)      
-            # plt.xlabel('Recall')
-            # plt.ylabel('Precision')
-            # plt.title('Precision-Recall Curve of {}'.format(self.verb_name_dict[i+1]))
-            # plt.grid()
-            # plt.show()
-
-        plt.plot(rec_interp,total_pre/num_class)      
-        plt.xlabel('Recall')
-        plt.ylabel('Precision')
-        plt.title('Average Precision-Recall Curve')
-        plt.grid()
-        plt.show()
 
     def compute_fptp(self, pred_hoi, gt_hoi, match_pairs, pred_bbox,bbox_ov):
         pos_pred_ids = match_pairs.keys()

@@ -316,7 +316,7 @@ class ERNet(nn.Module):
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
         aux_output = []
-        for idx in range(len(outputs_class)):
+        for idx in range(len(outputs_class)-1):
             out = {'pred_logits': outputs_class[idx], 'pred_boxes': outputs_coord[idx],
                    'id_emb': id_emb[idx]}
             if idx < len(outputs_rel_class):
@@ -347,7 +347,6 @@ class SetCriterion(nn.Module):
                      obj_labels=90,
                      rel_labels=117
                  ),
-                 cls_num_list_path = None,
                  neg_act_id=0):
         """ Create the criterion.
         Parameters:
@@ -369,21 +368,6 @@ class SetCriterion(nn.Module):
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
-
-        # Label-Aware Smoothing
-        if cls_num_list_path is not None:
-            smooth_head=0.3
-            smooth_tail=0.0
-            cls_num_list = np.load(cls_num_list_path)
-            n_1 = np.max(cls_num_list)
-            n_k = np.min(cls_num_list)
-            self.smooth = smooth_tail + (smooth_head - smooth_tail) \
-                      * np.sin((np.array(cls_num_list) - n_k) * np.pi / \
-                      (2 * (n_1 - n_k)))
-            self.smooth = torch.from_numpy(self.smooth[1:]).float()
-
-            if torch.cuda.is_available():
-                self.smooth = self.smooth.cuda()
 
         # ASL
         self.gamma_neg = 4
@@ -416,19 +400,8 @@ class SetCriterion(nn.Module):
                                             dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
         target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
         target_classes_onehot = target_classes_onehot[:,:,:-1]
-
-        prob = src_logits.sigmoid()
-        ce_loss = F.binary_cross_entropy_with_logits(src_logits, target_classes_onehot, reduction="none")
-        p_t = prob * target_classes_onehot + (1 - prob) * (1 - target_classes_onehot)
-        loss = ce_loss * ((1 - p_t) ** gamma)
-
-        if alpha >= 0:
-            alpha_t = alpha * target_classes_onehot + (1 - alpha) * (1 - target_classes_onehot)
-            loss = alpha_t * loss
-
-        loss_ce = loss.mean(1).sum() / num_boxes * src_logits.shape[1]
-        losses = {'loss_ce': loss_ce}   
-
+        loss_ce = sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=alpha, gamma=gamma) * src_logits.shape[1]
+        losses = {'loss_ce': loss_ce} 
 
         if log:
             # TODO this should probably be a separate loss, not hacked in this one here
@@ -803,6 +776,33 @@ class MLP(nn.Module):
                 x = self.actf(layer(x)) if i < self.num_layers - 1 else layer(x)
             return x
           
+def sigmoid_focal_loss(inputs, targets, num_boxes, alpha: float = 0.25, gamma: float = 2):
+    """
+    Loss used in RetinaNet for dense detection: https://arxiv.org/abs/1708.02002.
+    Args:
+        inputs: A float tensor of arbitrary shape.
+                The predictions for each example.
+        targets: A float tensor with the same shape as inputs. Stores the binary
+                 classification label for each element in inputs
+                (0 for the negative class and 1 for the positive class).
+        alpha: (optional) Weighting factor in range (0,1) to balance
+                positive vs negative examples. Default = -1 (no weighting).
+        gamma: Exponent of the modulating factor (1 - p_t) to
+               balance easy vs hard examples.
+    Returns:
+        Loss tensor
+    """
+    prob = inputs.sigmoid()
+    ce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
+    p_t = prob * targets + (1 - prob) * (1 - targets)
+    loss = ce_loss * ((1 - p_t) ** gamma)
+
+    if alpha >= 0:
+        alpha_t = alpha * targets + (1 - alpha) * (1 - targets)
+        loss = alpha_t * loss
+
+    return loss.mean(1).sum() / num_boxes
+          
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
     def __init__(self,
@@ -1008,8 +1008,7 @@ def build_model(cfg, device):
     losses = ['labels', 'boxes', 'cardinality', 'actions', 'rel_vecs', 'rel_cardinality',
               'emb_pull', 'emb_push']
     criterion = SetCriterion(matcher=matcher, losses=losses, weight_dict=weight_dict,
-                             eos_coef=cfg.LOSS.EOS_COEF, num_classes=num_classes, 
-                             cls_num_list_path = os.path.join(cfg.DATASET.ROOT,'cls_num_list.npy'))
+                             eos_coef=cfg.LOSS.EOS_COEF, num_classes=num_classes)
     criterion.to(device)
     postprocessors = PostProcess(cfg.TEST.REL_ARRAY_PATH, cfg.TEST.USE_EMB)
     return model, criterion, postprocessors

@@ -1,0 +1,15 @@
+2023-03-22 21:20:12,692 Added key: store_based_barrier_key:1 to store for rank: 0
+2023-03-22 21:20:12,715 Added key: store_based_barrier_key:1 to store for rank: 1
+2023-03-22 21:20:12,715 Rank 1: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+2023-03-22 21:20:12,723 Rank 0: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+2023-03-22 21:20:15,185 Loading pretrained weights from url (https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-effv2-weights/tf_efficientnetv2_s_21ft1k-d7dafa41.pth)
+2023-03-22 21:20:15,205 Loading pretrained weights from url (https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-effv2-weights/tf_efficientnetv2_s_21ft1k-d7dafa41.pth)
+2023-03-22 21:20:15,764 ==> load train sub set: /home/cyphi02/Marcus/ERNet/data/hoia/images/train/.
+2023-03-22 21:20:15,764 ==> load train sub set: /home/cyphi02/Marcus/ERNet/data/hoia/images/train/.
+2023-03-22 21:20:16,456 ==> load val sub set: /home/cyphi02/Marcus/ERNet/data/hoia/images/test/.
+2023-03-22 21:20:16,468 ==> load val sub set: /home/cyphi02/Marcus/ERNet/data/hoia/images/test/.
+2023-03-22 21:20:16,707 ==> the size of train dataset is 29824
+2023-03-22 21:20:16,707 ==> the size of eval dataset is 8787
+2023-03-22 21:20:16,722 ==> the size of train dataset is 29824
+2023-03-22 21:20:16,722 ==> the size of eval dataset is 8787
+2023-03-22 21:20:16,772 max epochs = 100 

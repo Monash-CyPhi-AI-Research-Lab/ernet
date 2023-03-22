@@ -1,0 +1,15 @@
+2023-03-20 21:42:40,958 Added key: store_based_barrier_key:1 to store for rank: 0
+2023-03-20 21:42:41,039 Added key: store_based_barrier_key:1 to store for rank: 1
+2023-03-20 21:42:41,040 Rank 1: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+2023-03-20 21:42:41,041 Rank 0: Completed store-based barrier for key:store_based_barrier_key:1 with 2 nodes.
+2023-03-20 21:42:43,519 Loading pretrained weights from url (https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-effv2-weights/tf_efficientnetv2_s_21ft1k-d7dafa41.pth)
+2023-03-20 21:42:43,526 Loading pretrained weights from url (https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-effv2-weights/tf_efficientnetv2_s_21ft1k-d7dafa41.pth)
+2023-03-20 21:42:44,118 ==> load train sub set: /home/cyphi02/Marcus/ERNet/data/hico/images/train/.
+2023-03-20 21:42:44,118 ==> load train sub set: /home/cyphi02/Marcus/ERNet/data/hico/images/train/.
+2023-03-20 21:42:45,105 ==> load val sub set: /home/cyphi02/Marcus/ERNet/data/hico/images/test/.
+2023-03-20 21:42:45,134 ==> load val sub set: /home/cyphi02/Marcus/ERNet/data/hico/images/test/.
+2023-03-20 21:42:45,419 ==> the size of train dataset is 37633
+2023-03-20 21:42:45,419 ==> the size of eval dataset is 9546
+2023-03-20 21:42:45,444 ==> the size of train dataset is 37633
+2023-03-20 21:42:45,445 ==> the size of eval dataset is 9546
+2023-03-20 21:42:45,484 max epochs = 100 
