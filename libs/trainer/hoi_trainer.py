@@ -37,6 +37,7 @@ class HOITrainer(BaseTrainer):
         self.device = device
         self.max_norm = max_norm  
         self.pue = cfg.TEST.PUE 
+        self.resume_init = True if self.cfg.TRAIN.RESUME else False
 
     def _read_inputs(self, inputs):
         imgs, targets, filenames = inputs
@@ -45,7 +46,7 @@ class HOITrainer(BaseTrainer):
         targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
         return imgs, targets
 
-    def _forward(self, data, step):
+    def _forward(self, data):
         imgs = data[0]
         targets = data[1]
         outputs = self.model(imgs)
@@ -61,10 +62,16 @@ class HOITrainer(BaseTrainer):
 
     def train(self, train_loader, eval_loader, step):
         if self.epoch == self.cfg.TRAIN.PL_STAGE[step]:
-            drop_rate = self.cfg.TRANSFORMER.DROPOUT+0.05*step
+            drop_rate = self.cfg.TRANSFORMER.DROPOUT + 0.05*step
             self.set_dropout(self.model, drop_rate=drop_rate)
-            step+=1
             print('Dropout is now set to {}'.format(drop_rate))
+            step+=1
+            
+        if self.resume_init:
+            drop_rate = self.cfg.TRANSFORMER.DROPOUT + 0.05*step
+            self.set_dropout(self.model, drop_rate=drop_rate)
+            print('Dropout is now set to {}'.format(drop_rate))
+            self.resume_init = False
 
         start_time = time.time()
         self.model.train()
@@ -82,7 +89,7 @@ class HOITrainer(BaseTrainer):
             sys.exit(0)
         for index, data in enumerate(metric_logger.log_every(train_loader, print_freq, header)):
             data = self._read_inputs(data)
-            loss_dict = self._forward(data, step)   
+            loss_dict = self._forward(data)   
             weight_dict = self.criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 

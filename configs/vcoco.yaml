@@ -11,7 +11,7 @@ CUDNN:
 DATASET:
   FILE: hico_det
   NAME: HICODetDataset
-  ROOT: 'data/vcoco/'
+  ROOT: '/home/cyphi02/Marcus/ERNet/data/vcoco/'
   MEAN: [0.485, 0.456, 0.406]
   STD: [0.229, 0.224, 0.225]
   IMG_NUM_PER_GPU: 2
@@ -86,7 +86,7 @@ TRAIN:
   CLIP_MAX_NORM: 0.1
   RESUME: False 
 TEST:
-  REL_ARRAY_PATH: data/vcoco/corre_vcoco.npy
+  REL_ARRAY_PATH: /home/cyphi02/Marcus/ERNet/data/vcoco/corre_vcoco.npy
   USE_EMB: TRUE
   MODE: vcoco
   PUE: False

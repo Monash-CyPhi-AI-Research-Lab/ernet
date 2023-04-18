@@ -42,19 +42,17 @@ class HungarianMatcher(nn.Module):
         bs, num_queries = outputs["pred_logits"].shape[:2]
 
         # We flatten to compute the cost matrices in a batch
-        out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid()
+        out_prob = outputs["pred_logits"].flatten(0, 1).softmax(-1)
         out_bbox = outputs["pred_boxes"].flatten(0, 1)  # [batch_size * num_queries, 4]
 
         # Also concat the target labels and boxes
         tgt_ids = torch.cat([v["labels"] for v in targets])
         tgt_bbox = torch.cat([v["boxes"] for v in targets])
 
-        # Compute the classification cost of Focal Loss
-        alpha = 0.25
-        gamma = 2.0
-        pos_cost_class = alpha * ((1 - out_prob) ** gamma) * (-(out_prob + 1e-8).log())
-        neg_cost_class = (1 - alpha) * (out_prob ** gamma) * (-(1 - out_prob + 1e-8).log())
-        cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]  
+        # Compute the classification cost. Contrary to the loss, we don't use the NLL,
+        # but approximate it in 1 - proba[target class].
+        # The 1 is a constant that doesn't change the matching, it can be ommitted.
+        cost_class = -out_prob[:, tgt_ids]
 
         # Compute the L1 cost between boxes
         cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
@@ -91,25 +89,16 @@ class HungarianMatcher(nn.Module):
 
         for idx, r_tgt_id in enumerate(rel_tgt_ids):
             tgt_rel_id = torch.where(r_tgt_id == 1)[0]    
-            rel_cost_list.append(-(rel_out_prob[:, tgt_rel_id]).sum(
-                dim=-1) * self.cost_class)
-
-            # Focal Loss
-            # alpha = 0.25
-            # gamma = 2.0
-            # neg_cost_class = (1 - alpha) * (rel_out_prob ** gamma) * (-(1 - rel_out_prob + 1e-8).log())
-            # pos_cost_class = alpha * ((1 - rel_out_prob) ** gamma) * (-(rel_out_prob + 1e-8).log())
-            # rel_cost_list.append((pos_cost_class[:, tgt_rel_id] - neg_cost_class[:, tgt_rel_id]).sum(dim=-1))
 
             # Asymmetric Loss
-            # gamma_pos = 0
-            # gamma_neg = 4
-            # m = 0.05
-            # p_m = rel_out_prob - m 
-            # p_m[torch.where(p_m<0)] = 0
-            # pos_cost_class = ((1 - rel_out_prob) ** gamma_pos) * (-(rel_out_prob + 1e-8).log())
-            # neg_cost_class = (p_m ** gamma_neg) * (-(1 - p_m + 1e-8).log())
-            # rel_cost_list.append((pos_cost_class[:, tgt_rel_id] - neg_cost_class[:, tgt_rel_id]).sum(dim=-1))
+            gamma_pos = 0
+            gamma_neg = 4
+            m = 0.05
+            p_m = rel_out_prob - m 
+            p_m[torch.where(p_m<0)] = 0
+            pos_cost_class = ((1 - rel_out_prob) ** gamma_pos) * (-(rel_out_prob + 1e-8).log())
+            neg_cost_class = (p_m ** gamma_neg) * (-(1 - p_m + 1e-8).log())
+            rel_cost_list.append((pos_cost_class[:, tgt_rel_id] - neg_cost_class[:, tgt_rel_id]).sum(dim=-1))
 
         rel_cost_class = torch.stack(rel_cost_list, dim=-1)
 

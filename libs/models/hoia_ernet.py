@@ -9,7 +9,6 @@ import copy
 import torch
 from torch import nn
 import torch.nn.functional as F
-from mish_cuda import *
 
 from scipy.spatial.distance import cdist
 from libs.models.backbone import build_backbone
@@ -60,7 +59,7 @@ class ERNet_HOIA(nn.Module):
         hidden_dim = transformer.d_model  
 
         # instance branch
-        self.class_embed = MLP(hidden_dim, hidden_dim, num_classes['obj_labels'], 3, 0.1, 'obj_labels')
+        self.class_embed = MLP(hidden_dim, hidden_dim, num_classes['obj_labels'] + 1, 3, 0.1, 'obj_labels')
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3, 0.0, None)
         
         # interaction branch
@@ -111,7 +110,7 @@ class ERNet_HOIA(nn.Module):
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
-        self.class_embed.layers[-1].bias.data = torch.ones(num_classes['obj_labels']) * bias_value
+        self.class_embed.layers[-1].bias.data = torch.ones(num_classes['obj_labels'] + 1) * bias_value
         self.rel_class_embed.layers[-1].bias.data = torch.ones(num_classes['rel_labels']) * bias_value
         nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
         nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
@@ -366,15 +365,18 @@ class SetCriterion(nn.Module):
         self.weight_dict = weight_dict
         self.eos_coef = eos_coef
         self.losses = losses
+        self.losses = losses
+        empty_weight = torch.ones(self.num_classes + 1)
+        empty_weight[-1] = self.eos_coef
+        self.register_buffer('empty_weight', empty_weight)
 
         # ASL
         self.gamma_neg = 4
         self.gamma_pos = 0
         self.clip = 0.05
         self.disable_torch_grad_focal_loss = True
-        self.eps = 0.1
+        self.eps = 1e-8
         self.eps_rel = 1e-8
-        self.target_labels = []
         
     def loss_labels(self, outputs_dict, targets, indices_dict, num_boxes_dict, log=True,
                             alpha=0.25, gamma=2, loss_reduce='sum'):
@@ -393,14 +395,9 @@ class SetCriterion(nn.Module):
                                     dtype=torch.int64, device=src_logits.device)
         target_classes[idx] = target_classes_o
 
-        # Focal Loss
-        num_boxes = num_boxes_dict['det']
-        target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
-                                            dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-        target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
-        target_classes_onehot = target_classes_onehot[:,:,:-1]
-        loss_ce = sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=alpha, gamma=gamma) * src_logits.shape[1]
-        losses = {'loss_ce': loss_ce} 
+        # Cross-Entropy
+        loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
+        losses = {'loss_ce': loss_ce}   
 
         if log:
             # TODO this should probably be a separate loss, not hacked in this one here
@@ -456,7 +453,7 @@ class SetCriterion(nn.Module):
             if self.disable_torch_grad_focal_loss:
                 torch.set_grad_enabled(True)
             loss *= one_sided_w
-        rel_loss = -loss.sum(dim=-1).mean() /  num_boxes * src_logits.shape[1]
+        rel_loss = -loss.mean(1).sum() /  num_boxes * src_logits.shape[1]
         losses['rel_loss_ce'] = rel_loss
 
         if log:
@@ -553,7 +550,6 @@ class SetCriterion(nn.Module):
         loss_bbox = F.l1_loss(src_vecs, target_vecs, reduction='none')
         losses = {}
         losses['rel_loss_bbox'] = loss_bbox.sum() / num_vecs
-
         return losses
 
     def loss_emb_push(self, outputs_dict, targets, indices_dict, num_boxes_dict, margin=8):
@@ -667,7 +663,7 @@ class SetCriterion(nn.Module):
 
         outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs' and k != 'enc_outputs'}
 
-        indices_dict = self.matcher(outputs, targets)
+        indices_dict = self.matcher(outputs_without_aux, targets)
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float,
@@ -705,18 +701,14 @@ class SetCriterion(nn.Module):
                     losses.update(l_dict)
 
         if 'enc_outputs' in outputs:    
-            enc_outputs = outputs['enc_outputs']
-            bin_targets = copy.deepcopy(targets)
-            # for bt in bin_targets:
-            #     bt['labels'] = torch.zeros_like(bt['labels'])
-            #     bt['rel_labels'] = torch.zeros_like(bt['rel_labels'])          
-            indices_dict = self.matcher(enc_outputs, bin_targets)
+            enc_outputs = outputs['enc_outputs']       
+            indices_dict = self.matcher(enc_outputs, targets)
             for loss in self.losses:
                 kwargs = {}
                 if loss == 'labels' or loss == 'actions':
                     # Logging is enabled only for the last layer
                     kwargs['log'] = False
-                l_dict = self.get_loss(loss, enc_outputs, bin_targets, indices_dict, num_boxes_dict, **kwargs)
+                l_dict = self.get_loss(loss, enc_outputs, targets, indices_dict, num_boxes_dict, **kwargs)
                 l_dict = {k + f'_enc': v for k, v in l_dict.items()}
                 losses.update(l_dict)
         return losses
@@ -728,7 +720,7 @@ class MLP(nn.Module):
         super().__init__()
         self.num_layers = num_layers
         h = [hidden_dim] * (num_layers - 1)
-        self.actf = nn.GELU()
+        self.actf = nn.Mish()
         self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
         self.dropout = nn.Dropout(p=dropout)
         self.dropout_rate = dropout
@@ -755,7 +747,7 @@ class MLP(nn.Module):
             x = torch.mean(x_out,dim=0)
 
             if self.class_labels == 'obj_labels':
-                x_var = torch.var(x_out.softmax(dim=-1),dim=0)
+                x_var = torch.var(x_out.softmax(-1),dim=0)
 
             elif self.class_labels == 'rel_labels':
                 x_var = torch.var(x_out.sigmoid(),dim=0)
@@ -803,12 +795,15 @@ class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
     def __init__(self,
                  rel_array_path,
-                 use_emb=False):
+                 use_emb=False,
+                 use_pue=False):
         super().__init__()
         # use semantic embedding in the matching or not
         self.use_emb = use_emb
         # rel array to remove non-exist hoi categories in training
         self.rel_array_path = rel_array_path
+        # use predictive uncertainty estimation
+        self.use_pue = use_pue
         
     def get_matching_scores(self, s_cetr, o_cetr, s_scores, o_scores, rel_vec,
                             s_emb, o_emb, src_emb, dst_emb): 
@@ -867,9 +862,9 @@ class PostProcess(nn.Module):
 
         # parse instance detection results
         out_bbox = out_bbox * scale_fct[:, None, :]
-        out_bbox_flat = out_bbox.flatten(0, 1)      
-        prob = F.softmax(out_logits, -1) 
-        scores, labels = prob[..., :-1].max(dim=-1)
+        out_bbox_flat = out_bbox.flatten(0, 1)
+        prob = F.softmax(out_logits, -1)
+        scores, labels = prob[..., :-1].max(-1)
         labels_flat = labels.flatten(0, 1) # '(bs * num_queries, )
         scores_flat = scores.flatten(0, 1)
         boxes = box_ops.box_cxcywh_to_xyxy(out_bbox_flat)
@@ -931,8 +926,10 @@ class PostProcess(nn.Module):
         hoi_triplet = hoi_triplet[np.argsort(-hoi_triplet[:,-2])]
         _, hoi_id = np.unique(hoi_triplet[:, [0, 1, 2]], axis=0, return_index=True)
         rel_triplet = hoi_triplet[hoi_id]
-        # rel_triplet = rel_triplet[np.argsort(-rel_triplet[:,-2])]
-        rel_triplet = rel_triplet[np.argsort(-rel_triplet[:,-1])]
+        if self.use_pue:
+            rel_triplet = rel_triplet[np.argsort(-rel_triplet[:,-1])]
+        else:
+            rel_triplet = rel_triplet[np.argsort(-rel_triplet[:,-2])]
 
         # save topk hoi triplets
         rel_topk = min(rel_topk, len(rel_triplet))
@@ -1015,5 +1012,5 @@ def build_model(cfg, device):
     criterion = SetCriterion(matcher=matcher, losses=losses, weight_dict=weight_dict,
                              eos_coef=cfg.LOSS.EOS_COEF, num_classes=num_classes)
     criterion.to(device)
-    postprocessors = PostProcess(cfg.TEST.REL_ARRAY_PATH, cfg.TEST.USE_EMB)
+    postprocessors = PostProcess(cfg.TEST.REL_ARRAY_PATH, cfg.TEST.USE_EMB, cfg.TEST.PUE)
     return model, criterion, postprocessors

@@ -342,12 +342,8 @@ class InteractionTransformer(nn.Module):
         rel_token = self.rel_det_token.expand(bs, -1, -1) + self.rel_det_pos_embed.expand(bs, -1, -1)
         tokens = torch.cat([det_token, memory], dim=1)
         tgt = self.det_attn_blocks(tokens)[:, :self.two_stage_num_proposals]
-        # tgt_memory = tgt[:,self.two_stage_num_proposals:]
-        # tgt = tgt[:, :self.two_stage_num_proposals]
         tokens = torch.cat([rel_token, memory], dim=1)
         rel_tgt = self.rel_attn_blocks(tokens)[:, :self.two_stage_rel_num_proposals]
-        # rel_tgt_memory = rel_tgt[:,self.two_stage_rel_num_proposals:]
-        # rel_tgt = rel_tgt[:, :self.two_stage_rel_num_proposals]
 
         if self.two_stage:
 
@@ -669,7 +665,6 @@ class DeformableTransformerDecoderLayer(nn.Module):
         return tensor if pos is None else tensor + pos 
 
     def forward_ffn(self, tgt):
-        # tgt = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout3(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout4(tgt2)
         tgt = self.norm3(tgt)
@@ -969,7 +964,7 @@ def build_deformable_transformer(cfg):
             num_encoder_layers=cfg.TRANSFORMER.ENC_LAYERS,
             num_decoder_layers=cfg.TRANSFORMER.DEC_LAYERS,
             num_rel_decoder_layers=cfg.TRANSFORMER.DEC_LAYERS,
-            activation="gelu",
+            activation="mish",
             return_intermediate_dec=True,
             num_feature_levels=cfg.TRANSFORMER.NUM_FEATURE_LEVELS,
             dec_n_points=cfg.TRANSFORMER.DEC_N_POINTS,

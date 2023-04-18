@@ -63,6 +63,8 @@ class BackboneBase(nn.Module):
             self.num_channels = [96,224,640]
         elif name == 'tf_efficientnetv2_xl.in21k_ft_in1k':
             self.num_channels = [96,256,640]
+        elif name == 'convnextv2_tiny.fcmae_ft_in22k_in1k_384':
+            self.num_channels = [192,384,768]
 
     def forward(self, tensor_list: NestedTensor):
         xs = self.backbone(tensor_list.tensors)
@@ -89,8 +91,12 @@ class Backbone(BackboneBase):
                  dropout: float,
                  dilation: bool,
                  pretrained: bool):
+        if 'efficientnetv2' in name:
+            out_indices = (2,3,4)
+        elif 'convnextv2' in name:
+            out_indices = (1,2,3)
         backbone = timm.create_model(name,
-                                      features_only=True, out_indices=(2,3,4),
+                                      features_only=True, out_indices=out_indices,
                                       pretrained=pretrained)
         super().__init__(backbone,name,train_backbone)
 
